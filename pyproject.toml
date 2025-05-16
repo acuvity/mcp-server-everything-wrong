@@ -1,0 +1,21 @@
+[project]
+name = "mcp-server-everything-wrong"
+version = "0.1.0"
+description = "Show case common MCP server security concerns"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx",
+    "mcp[server]>=1.9.0",
+    "pydantic",
+]
+
+[project.scripts]
+mcp-server-everything-wrong = "mcp_server_everything_wrong:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = ["pyright>=1.1.389", "ruff>=0.7.3"]
