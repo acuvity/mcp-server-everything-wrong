@@ -1,0 +1,5 @@
+{
+  "everthing-wrong": {
+    "url": "http://mcp-server-everything-wrong:8000/sse"
+  }
+}

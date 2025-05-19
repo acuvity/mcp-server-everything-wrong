@@ -22,7 +22,17 @@ For example, in your `Claude.app` or other MCP-compatible client, add:
 }
 ```
 
-Replace `"everythingWrong"` with your chosen server name (e.g. via `FastMCP("mcp-server-everything-wrong")`).
+### Or via the docker compose file
+
+> [!NOTE]
+> You will need an OpenAI, Anthropic, or Gemini API key for this to work.
+
+```console
+cd compose
+docker compose up -d
+```
+
+Open `http://127.0.0.1:3000`, create a local account and start playing.
 
 ---
 
