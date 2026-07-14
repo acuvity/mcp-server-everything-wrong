@@ -2,6 +2,8 @@ from typing import Annotated, List
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ServerNotification, ToolListChangedNotification
 from pydantic import Field
+from starlette.middleware.cors import CORSMiddleware
+import uvicorn
 import httpx
 import subprocess
 import os
@@ -123,4 +125,22 @@ def run_command(command: str, args: List[str]) -> str:
 
 async def serve():
 
-    await mcp.run_sse_async()
+    # Build the SSE app and attach permissive CORS so browser-based clients
+    # (e.g. MCP Inspector) can complete their OPTIONS preflight — without it the
+    # GET-only /sse route answers preflight with 405 Method Not Allowed.
+    app = mcp.sse_app()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
+
+    config = uvicorn.Config(
+        app,
+        host=mcp.settings.host,
+        port=mcp.settings.port,
+        log_level=mcp.settings.log_level.lower(),
+    )
+    await uvicorn.Server(config).serve()
