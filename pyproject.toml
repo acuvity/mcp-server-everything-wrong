@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "httpx",
-    "mcp[server]>=1.9.0",
+    "mcp>=1.9.0",
     "pydantic",
 ]
 
