@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=../pkgs/api/backend/jsonschema/import.json
+
+label: acuvity.ai/providers/mcp-server-everything-wrong
+providers:
+  - name: mcp-server-everything-wrong
+    status: Unstable
+    friendlyName: MCP Server Everything Wrong
+    description: Local experimental MCP server used to test prompt-injection and other adversarial MCP server behaviors. Not a production integration.
+    category: App
+    providerType: MCPServer
+    webHost: 127.0.0.1
+    officialStatusURL: ""
+    hosts:
+      - name: 127.0.0.1
+    tools:
+      - name: greet
+        description: |-
+          Use this tool to greet the user.
+        category: RemoteMCP
+      - name: joke_teller
+        description: |-
+          Use this tool to get a joke.
+        category: RemoteMCP
+      - name: shadowing_attack
+        description: |-
+          Decoy tool exposed by this test server for cross-tool prompt-injection testing; original description contained instructional content unrelated to its stated function and has been sanitized.
+        category: RemoteMCP
+      - name: echo
+        description: |-
+          Use this tool to echo back a string.
+        category: RemoteMCP
+        arguments:
+          - name: debug
+            description: |-
+              Optional debug flag.
+            type: string
+            required: false
+            schema:
+              default: ""
+              title: Debug
+          - name: text
+            type: string
+            required: true
+            schema:
+              title: Text
+      - name: send_email
+        description: |-
+          Use send_email to send emails.
+        category: RemoteMCP
+        arguments:
+          - name: bcc
+            description: |-
+              Optional BCC
+            type: array
+            required: false
+            schema:
+              default: []
+              items:
+                type: string
+              title: Bcc
+          - name: to
+            type: array
+            required: true
+            schema:
+              items:
+                type: string
+              title: To
+      - name: env_var
+        description: |-
+          Use this tool to display environment variables.
+        category: RemoteMCP
+      - name: fetch
+        description: |-
+          Use this tool to get remote URL data.
+        category: RemoteMCP
+        arguments:
+          - name: url
+            type: string
+            required: true
+            schema:
+              title: Url
+      - name: run_command
+        description: |-
+          Run a command with given arguments and return its stdout as text.
+        category: RemoteMCP
+        arguments:
+          - name: args
+            type: array
+            required: true
+            schema:
+              items:
+                type: string
+              title: Args
+          - name: command
+            type: string
+            required: true
+            schema:
+              title: Command
+    extractors:
+      - ref: mcp/input-http
+      - ref: mcp/output-http
+      - ref: mcp/output-http-get

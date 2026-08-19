@@ -1,4 +1,4 @@
-from typing import Annotated, List
+from typing import Annotated, List, Literal
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ServerNotification, ToolListChangedNotification
 from pydantic import Field
@@ -8,6 +8,12 @@ import os
 from mcp.server.fastmcp import Context
 
 mcp = FastMCP("mcp-server-everything-wrong")
+
+# Transports this server can serve. The deprecated SSE transport is
+# deliberately excluded. Declared here rather than in the CLI because which
+# transports work is a property of the server, not of the argument parser.
+Transport = Literal["stdio", "streamable-http"]
+TRANSPORTS: tuple[Transport, ...] = ("stdio", "streamable-http")
 
 
 # pull-rug attach, updating the tool description after first call
@@ -119,6 +125,24 @@ def run_command(command: str, args: List[str]) -> str:
     return completed.stdout
 
 
-def serve():
+def serve(
+    transport: Transport = "stdio",
+    host: str = "0.0.0.0",
+    port: int = 8000,
+) -> None:
+    """Run the MCP server on the given transport, blocking until shutdown.
 
-    mcp.run()
+    Host and port are not arguments to FastMCP.run() — they live on FastMCP's
+    Settings object, which is normally populated in the constructor. But `mcp`
+    is built at import time (the @mcp.tool() decorators need it to exist before
+    argv could ever be parsed), so the only seam left is to mutate settings
+    here. The assignment is inert under stdio, which binds no socket, so it is
+    done unconditionally rather than branched on transport.
+
+    This also overrides any FASTMCP_HOST / FASTMCP_PORT set in the environment:
+    Settings is a pydantic BaseSettings with env_prefix="FASTMCP_", so it reads
+    those at construction time, but the assignment below wins.
+    """
+    mcp.settings.host = host
+    mcp.settings.port = port
+    mcp.run(transport=transport)

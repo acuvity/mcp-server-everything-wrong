@@ -22,17 +22,79 @@ For example, in your `Claude.app` or other MCP-compatible client, add:
 }
 ```
 
-### Or via the docker compose file
+### Choosing a transport
+
+The server speaks stdio by default. Pass `--transport streamable-http` to serve
+MCP over HTTP instead.
+
+| Flag | Environment variable | Default | Notes |
+| ---- | -------------------- | ------- | ----- |
+| `--transport {stdio,streamable-http}` | `MCP_TRANSPORT` | `stdio` | The deprecated SSE transport is not supported. |
+| `--host` | `MCP_HOST` | `0.0.0.0` | HTTP only; ignored under stdio. |
+| `--port` | `MCP_PORT` | `8000` | HTTP only; ignored under stdio. |
+
+A command-line flag wins over its environment variable, which wins over the
+default.
+
+```console
+mcp-server-everything-wrong --transport streamable-http --host 0.0.0.0 --port 8000
+```
+
+The endpoint is then `http://<host>:<port>/mcp`. For a client that connects to a
+URL rather than spawning a process:
+
+```jsonc
+"mcpServers": {
+  "everythingWrong": {
+    "url": "http://127.0.0.1:8000/mcp"
+  }
+}
+```
 
 > [!NOTE]
-> You will need an OpenAI, Anthropic, or Gemini API key for this to work.
+> The HTTP transport runs in stateful mode, which the `greet` rug-pull demo
+> requires — it pushes a `notifications/tools/list_changed` over the session.
+
+> [!CAUTION]
+> The default host is `0.0.0.0`, which binds every interface — so once you enable
+> the HTTP transport, anyone who can reach the port gets the `run_command`,
+> `env_var`, and `fetch` tools, i.e. arbitrary command execution and a dump of
+> your environment. That is the point of this server, and it is why it must never
+> run anywhere untrusted. On a shared network, pass `--host 127.0.0.1`.
+> Under Docker this is the wrong lever: `MCP_HOST` must stay `0.0.0.0` or the
+> published port becomes unreachable. There, control exposure with the port
+> mapping instead — the compose variant publishes `127.0.0.1:8000:8000` for
+> this reason.
+
+### Or via Docker/Podman Compose
 
 ```console
 cd compose
-docker compose up -d
+podman compose up -d --build   # or: docker compose up -d --build
 ```
 
-Open `http://127.0.0.1:3000`, create a local account and start playing.
+This builds and starts two containers:
+
+| Service | What it is | Reachable at |
+| ------- | ---------- | ------------ |
+| `mcp-server-everything-wrong` | This repo, built from the root [`Dockerfile`](Dockerfile), running the `streamable-http` transport (`MCP_TRANSPORT=streamable-http`). | `http://127.0.0.1:8000/mcp` — published loopback-only, per the CAUTION above. |
+| `mcp-inspector` | The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) web UI — a browser-based MCP client for poking at the server without wiring up a real LLM client. | `http://localhost:6274` (the auth token is printed by `podman logs mcp-inspector`); its MCP Apps sandbox is on `:6275`. |
+
+The inspector reaches `mcp-server-everything-wrong` over the compose network
+at `http://mcp-server-everything-wrong:8000/mcp`, and comes pre-onboarded with
+exactly that one server — no manual setup needed to start exploring it in the
+UI. Pass `ADD_MORE_MCP_SERVERS=true` to also seed the inspector's own
+`filesystem` and `everything` demo servers alongside it — this is resolved
+when the container starts, not when it's built, so a plain restart (no
+`--build`) is enough to switch:
+
+```console
+ADD_MORE_MCP_SERVERS=true podman compose up -d
+```
+
+To point a real LLM client at the compose-started server instead of the
+inspector, use the same `url`-based config shown above, unchanged:
+`http://127.0.0.1:8000/mcp`.
 
 ---
 

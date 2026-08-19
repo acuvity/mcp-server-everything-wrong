@@ -1,34 +1,48 @@
 services:
-  chat:
-    image: acuvity/mcp-client-chatbot:1.0.0
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY}
-    labels:
-      - type=chat
+  # 🛠️ The MCP Inspector Web UI
+  mcp-inspector:
+    build:
+      context: .
+      dockerfile: inspector.Dockerfile
+    container_name: mcp-inspector
     ports:
-      - "3000:3000"
+      - "6274:6274"
+      - "6275:6275"
+    environment:
+      - NODE_ENV=production
+      # The inspector's --host CLI flag is ignored; it only binds to what
+      # HOST says (127.0.0.1 by default), so without this the container's
+      # port mapping has nothing to forward to. It also refuses to bind
+      # 0.0.0.0 unless DANGEROUSLY_BIND_ALL_INTERFACES=true is set, since
+      # doing so on a real host would expose it to the whole network — safe
+      # here because the container is otherwise isolated.
+      - HOST=0.0.0.0
+      - DANGEROUSLY_BIND_ALL_INTERFACES=true
+      # Only mcp-server-everything-wrong is seeded into the inspector's
+      # server catalog by default. Set to "true" (no rebuild needed, just
+      # restart the container) to also seed its filesystem/everything demo
+      # servers: ADD_MORE_MCP_SERVERS=true podman compose up -d
+      - ADD_MORE_MCP_SERVERS=${ADD_MORE_MCP_SERVERS:-false}
     restart: always
-    volumes:
-      - type: bind
-        source: ./data
-        target: /data
 
+  # 🛠️ The MCP Server Everything Wrong
   mcp-server-everything-wrong:
     image: acuvity/mcp-server-everything-wrong:latest
     labels:
       - type=mcp-server
+    build:
+      context: ..
     environment:
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8000
+      - MCP_TRANSPORT=streamable-http
       - OPENAI_API_KEY=thisIsNotArealAPIkeyButstill
-      # uncomment this one to show rug_pull prevention
-      #- MINIBRIDGE_SBOM=/disable
-      # uncomment this one to show tool poisoining prevention
       - GUARDRAILS=sensitive-pattern-detection secrets-redaction
-    # covert-instruction-detection
-    # sensitive-pattern-detection
-    # shadowing-pattern-detection
-    # schema-misuse-prevention
-    # cross-origin-tool-access
-    # secrets-redaction
+    ports:
+      # Loopback-only publish. Do NOT use "8000:8000" here: that exposes
+      # run_command and env_var to anyone on your network. Note that MCP_HOST
+      # must stay 0.0.0.0 — inside a container, binding loopback would make the
+      # published port unreachable. Under Docker the port publish is the
+      # exposure control, not MCP_HOST.
+      - "127.0.0.1:8000:8000"
     restart: always
