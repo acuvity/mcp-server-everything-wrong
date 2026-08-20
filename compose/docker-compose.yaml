@@ -1,20 +1,32 @@
 services:
-  chat:
-    image: acuvity/mcp-client-chatbot:1.0.0
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY}
-    labels:
-      - type=chat
+  # 🛠️ The MCP Inspector Web UI
+  mcp-inspector:
+    build:
+      context: .
+      dockerfile: inspector.Dockerfile
+      args:
+        # Only mcp-server-everything-wrong is seeded by default. Set
+        # ADD_MORE_MCP_SERVERS=true in the shell before this command to also
+        # seed the inspector's own filesystem/everything demo servers, e.g.:
+        #   ADD_MORE_MCP_SERVERS=true podman compose up -d --build
+        ADD_MORE_MCP_SERVERS: ${ADD_MORE_MCP_SERVERS:-false}
+    container_name: mcp-inspector
     ports:
-      - "3000:3000"
+      - "6274:6274"
+      - "6275:6275"
+    environment:
+      - NODE_ENV=production
+      # The inspector's --host CLI flag is ignored; it only binds to what
+      # HOST says (127.0.0.1 by default), so without this the container's
+      # port mapping has nothing to forward to. It also refuses to bind
+      # 0.0.0.0 unless DANGEROUSLY_BIND_ALL_INTERFACES=true is set, since
+      # doing so on a real host would expose it to the whole network — safe
+      # here because the container is otherwise isolated.
+      - HOST=0.0.0.0
+      - DANGEROUSLY_BIND_ALL_INTERFACES=true
     restart: always
-    volumes:
-      - type: bind
-        source: ./data
-        target: /data
 
+  # 🛠️ The MCP Server Everything Wrong
   mcp-server-everything-wrong:
     image: acuvity/mcp-server-everything-wrong:latest
     labels:
@@ -24,6 +36,7 @@ services:
     environment:
       - MCP_HOST=0.0.0.0
       - MCP_PORT=8000
+      - MCP_TRANSPORT=streamable-http
       - OPENAI_API_KEY=thisIsNotArealAPIkeyButstill
       - GUARDRAILS=sensitive-pattern-detection secrets-redaction
     ports:
