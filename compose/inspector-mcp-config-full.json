@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "filesystem-server-default": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/tmp"
+      ]
+    },
+    "everything-server-default": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-everything"
+      ]
+    },
+    "mcp-server-everything-wrong": {
+      "type": "streamable-http",
+      "url": "http://mcp-server-everything-wrong:8000/mcp"
+    }
+  }
+}
