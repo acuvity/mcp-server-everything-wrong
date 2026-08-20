@@ -66,30 +66,33 @@ URL rather than spawning a process:
 > mapping instead — the compose variant publishes `127.0.0.1:8000:8000` for
 > this reason.
 
-### Or via the docker compose file
-
-> [!NOTE]
-> You will need an OpenAI, Anthropic, or Gemini API key for this to work.
+### Or via Docker/Podman Compose
 
 ```console
 cd compose
-docker compose up -d
+podman compose up -d --build   # or: docker compose up -d --build
 ```
 
-That stack runs the prebuilt `acuvity/mcp-server-everything-wrong` image, which
-wraps this server in [minibridge](https://github.com/acuvity/minibridge) and
-terminates HTTP on its behalf — which is what makes the `GUARDRAILS` variables
-in `docker-compose.yaml` work.
+This builds and starts two containers:
 
-To instead run the server's own HTTP transport, uncomment the
-`mcp-server-everything-wrong-native` service in `compose/docker-compose.yaml`
-and comment out the `mcp-server-everything-wrong` service. Note that this
-removes minibridge, so the guardrail and rug-pull-prevention demos no longer
-apply, and the endpoint becomes `/mcp` rather than `/sse` — update the URL in
-`compose/data/.mcp-config.json` to `http://mcp-server-everything-wrong-native:8000/mcp`
-accordingly.
+| Service | What it is | Reachable at |
+| ------- | ---------- | ------------ |
+| `mcp-server-everything-wrong` | This repo, built from the root [`Dockerfile`](Dockerfile), running the `streamable-http` transport (`MCP_TRANSPORT=streamable-http`). | `http://127.0.0.1:8000/mcp` — published loopback-only, per the CAUTION above. |
+| `mcp-inspector` | The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) web UI — a browser-based MCP client for poking at the server without wiring up a real LLM client. | `http://localhost:6274` (the auth token is printed by `podman logs mcp-inspector`); its MCP Apps sandbox is on `:6275`. |
 
-Open `http://127.0.0.1:3000`, create a local account and start playing.
+The inspector reaches `mcp-server-everything-wrong` over the compose network
+at `http://mcp-server-everything-wrong:8000/mcp`, and comes pre-onboarded with
+exactly that one server — no manual setup needed to start exploring it in the
+UI. Pass `ADD_MORE_MCP_SERVERS=true` to also seed the inspector's own
+`filesystem` and `everything` demo servers alongside it:
+
+```console
+ADD_MORE_MCP_SERVERS=true podman compose up -d --build
+```
+
+To point a real LLM client at the compose-started server instead of the
+inspector, use the same `url`-based config shown above, unchanged:
+`http://127.0.0.1:8000/mcp`.
 
 ---
 
