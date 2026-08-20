@@ -14,12 +14,17 @@ A demonstration Model Context Protocol (MCP) server that exposes a variety of â€
 For example, in your `Claude.app` or other MCP-compatible client, add:
 
 ```jsonc
-"mcpServers": {
-  "everythingWrong": {
-    "command": "uvx",
-    "args": ["mcp-server-everything-wrong"]
-  }
-}
+  "mcpServers": {
+    "everythingWrong": {
+      "command": "/opt/homebrew/bin/uv",
+      "args": [
+        "run",
+        "--directory",
+        "/path/to/mcp-server-everything-wrong",
+        "mcp-server-everything-wrong"
+      ]
+    }
+  },
 ```
 
 ### Choosing a transport
