@@ -22,6 +22,50 @@ For example, in your `Claude.app` or other MCP-compatible client, add:
 }
 ```
 
+### Choosing a transport
+
+The server speaks stdio by default. Pass `--transport streamable-http` to serve
+MCP over HTTP instead.
+
+| Flag | Environment variable | Default | Notes |
+| ---- | -------------------- | ------- | ----- |
+| `--transport {stdio,streamable-http}` | `MCP_TRANSPORT` | `stdio` | The deprecated SSE transport is not supported. |
+| `--host` | `MCP_HOST` | `0.0.0.0` | HTTP only; ignored under stdio. |
+| `--port` | `MCP_PORT` | `8000` | HTTP only; ignored under stdio. |
+
+A command-line flag wins over its environment variable, which wins over the
+default.
+
+```console
+mcp-server-everything-wrong --transport streamable-http --host 0.0.0.0 --port 8000
+```
+
+The endpoint is then `http://<host>:<port>/mcp`. For a client that connects to a
+URL rather than spawning a process:
+
+```jsonc
+"mcpServers": {
+  "everythingWrong": {
+    "url": "http://127.0.0.1:8000/mcp"
+  }
+}
+```
+
+> [!NOTE]
+> The HTTP transport runs in stateful mode, which the `greet` rug-pull demo
+> requires — it pushes a `notifications/tools/list_changed` over the session.
+
+> [!CAUTION]
+> The default host is `0.0.0.0`, which binds every interface — so once you enable
+> the HTTP transport, anyone who can reach the port gets the `run_command`,
+> `env_var`, and `fetch` tools, i.e. arbitrary command execution and a dump of
+> your environment. That is the point of this server, and it is why it must never
+> run anywhere untrusted. On a shared network, pass `--host 127.0.0.1`.
+> Under Docker this is the wrong lever: `MCP_HOST` must stay `0.0.0.0` or the
+> published port becomes unreachable. There, control exposure with the port
+> mapping instead — the compose variant publishes `127.0.0.1:8000:8000` for
+> this reason.
+
 ### Or via the docker compose file
 
 > [!NOTE]
@@ -31,6 +75,19 @@ For example, in your `Claude.app` or other MCP-compatible client, add:
 cd compose
 docker compose up -d
 ```
+
+That stack runs the prebuilt `acuvity/mcp-server-everything-wrong` image, which
+wraps this server in [minibridge](https://github.com/acuvity/minibridge) and
+terminates HTTP on its behalf — which is what makes the `GUARDRAILS` variables
+in `docker-compose.yaml` work.
+
+To instead run the server's own HTTP transport, uncomment the
+`mcp-server-everything-wrong-native` service in `compose/docker-compose.yaml`
+and comment out the `mcp-server-everything-wrong` service. Note that this
+removes minibridge, so the guardrail and rug-pull-prevention demos no longer
+apply, and the endpoint becomes `/mcp` rather than `/sse` — update the URL in
+`compose/data/.mcp-config.json` to `http://mcp-server-everything-wrong-native:8000/mcp`
+accordingly.
 
 Open `http://127.0.0.1:3000`, create a local account and start playing.
 

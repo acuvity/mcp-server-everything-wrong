@@ -24,4 +24,8 @@ COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Default port for the streamable HTTP transport. Documentation only — the
+# server still starts on stdio unless MCP_TRANSPORT says otherwise.
+EXPOSE 8000
+
 ENTRYPOINT ["mcp-server-everything-wrong"]
