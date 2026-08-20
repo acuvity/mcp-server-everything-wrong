@@ -84,10 +84,12 @@ The inspector reaches `mcp-server-everything-wrong` over the compose network
 at `http://mcp-server-everything-wrong:8000/mcp`, and comes pre-onboarded with
 exactly that one server — no manual setup needed to start exploring it in the
 UI. Pass `ADD_MORE_MCP_SERVERS=true` to also seed the inspector's own
-`filesystem` and `everything` demo servers alongside it:
+`filesystem` and `everything` demo servers alongside it — this is resolved
+when the container starts, not when it's built, so a plain restart (no
+`--build`) is enough to switch:
 
 ```console
-ADD_MORE_MCP_SERVERS=true podman compose up -d --build
+ADD_MORE_MCP_SERVERS=true podman compose up -d
 ```
 
 To point a real LLM client at the compose-started server instead of the

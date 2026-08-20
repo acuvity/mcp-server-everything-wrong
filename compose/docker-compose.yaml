@@ -4,12 +4,6 @@ services:
     build:
       context: .
       dockerfile: inspector.Dockerfile
-      args:
-        # Only mcp-server-everything-wrong is seeded by default. Set
-        # ADD_MORE_MCP_SERVERS=true in the shell before this command to also
-        # seed the inspector's own filesystem/everything demo servers, e.g.:
-        #   ADD_MORE_MCP_SERVERS=true podman compose up -d --build
-        ADD_MORE_MCP_SERVERS: ${ADD_MORE_MCP_SERVERS:-false}
     container_name: mcp-inspector
     ports:
       - "6274:6274"
@@ -24,6 +18,11 @@ services:
       # here because the container is otherwise isolated.
       - HOST=0.0.0.0
       - DANGEROUSLY_BIND_ALL_INTERFACES=true
+      # Only mcp-server-everything-wrong is seeded into the inspector's
+      # server catalog by default. Set to "true" (no rebuild needed, just
+      # restart the container) to also seed its filesystem/everything demo
+      # servers: ADD_MORE_MCP_SERVERS=true podman compose up -d
+      - ADD_MORE_MCP_SERVERS=${ADD_MORE_MCP_SERVERS:-false}
     restart: always
 
   # 🛠️ The MCP Server Everything Wrong

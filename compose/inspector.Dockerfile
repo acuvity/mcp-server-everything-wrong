@@ -3,31 +3,20 @@ FROM node:22-alpine
 # Install the MCP Inspector globally
 RUN npm install -g @modelcontextprotocol/inspector@latest
 
-# Seed the inspector's writable server catalog so mcp-server-everything-wrong
-# is pre-onboarded. Placing the file here means the inspector finds it
-# already present on first launch and skips writing its built-in
-# DEFAULT_SEED_CONFIG over it — it's still the writable catalog, so servers
-# can be edited/added from the UI afterwards.
-#
-# By default only mcp-server-everything-wrong is seeded. Pass
-# ADD_MORE_MCP_SERVERS=true (via docker-compose.yaml's build arg, itself
-# read from the shell environment) to also seed the inspector's own
-# filesystem/everything demo servers.
-ARG ADD_MORE_MCP_SERVERS=false
-COPY inspector-mcp-config-minimal.json inspector-mcp-config-full.json /tmp/
-RUN mkdir -p /root/.mcp-inspector && \
-    if [ "$ADD_MORE_MCP_SERVERS" = "true" ]; then \
-      cp /tmp/inspector-mcp-config-full.json /root/.mcp-inspector/mcp.json; \
-    else \
-      cp /tmp/inspector-mcp-config-minimal.json /root/.mcp-inspector/mcp.json; \
-    fi && \
-    rm -f /tmp/inspector-mcp-config-minimal.json /tmp/inspector-mcp-config-full.json
+# Both candidate seed configs for the inspector's writable server catalog
+# ship in the image; inspector-entrypoint.sh decides which one to install at
+# container start (based on the ADD_MORE_MCP_SERVERS env var), not here —
+# so switching between them only needs a restart, not a rebuild.
+COPY inspector-mcp-config-minimal.json /opt/inspector-configs/minimal.json
+COPY inspector-mcp-config-full.json /opt/inspector-configs/full.json
+COPY inspector-entrypoint.sh /usr/local/bin/inspector-entrypoint.sh
+RUN chmod +x /usr/local/bin/inspector-entrypoint.sh
 
 # Web UI (6274) and MCP Apps sandbox (6275). Actual bind address is
 # controlled by the HOST / DANGEROUSLY_BIND_ALL_INTERFACES env vars set in
 # docker-compose.yaml, not by a CLI flag.
 EXPOSE 6274 6275
 
-ENTRYPOINT ["npx", "@modelcontextprotocol/inspector"]
+ENTRYPOINT ["/usr/local/bin/inspector-entrypoint.sh"]
 
 CMD ["--web"]
