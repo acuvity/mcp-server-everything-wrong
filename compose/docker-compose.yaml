@@ -19,47 +19,18 @@ services:
     image: acuvity/mcp-server-everything-wrong:latest
     labels:
       - type=mcp-server
+    build:
+      context: ..
     environment:
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8000
       - OPENAI_API_KEY=thisIsNotArealAPIkeyButstill
-      # uncomment this one to show rug_pull prevention
-      #- MINIBRIDGE_SBOM=/disable
-      # uncomment this one to show tool poisoining prevention
       - GUARDRAILS=sensitive-pattern-detection secrets-redaction
-    # covert-instruction-detection
-    # sensitive-pattern-detection
-    # shadowing-pattern-detection
-    # schema-misuse-prevention
-    # cross-origin-tool-access
-    # secrets-redaction
+    ports:
+      # Loopback-only publish. Do NOT use "8000:8000" here: that exposes
+      # run_command and env_var to anyone on your network. Note that MCP_HOST
+      # must stay 0.0.0.0 — inside a container, binding loopback would make the
+      # published port unreachable. Under Docker the port publish is the
+      # exposure control, not MCP_HOST.
+      - "127.0.0.1:8000:8000"
     restart: always
-
-  # Alternative to the service above: build from this repo and serve MCP
-  # directly, with no minibridge in front of it. Uncomment this service and
-  # comment out `mcp-server-everything-wrong` to use it.
-  #
-  # CAUTION: this bypasses minibridge, so the GUARDRAILS and MINIBRIDGE_SBOM
-  # variables above have no effect and the guardrail and rug-pull-prevention
-  # demos will not apply. Use it to show the raw, unprotected server.
-  #
-  # The endpoint is /mcp, not the /sse path in data/.mcp-config.json, because
-  # the deprecated SSE transport is not supported. If your client supports
-  # streamable HTTP, point it at http://mcp-server-everything-wrong-native:8000/mcp
-  #
-  # mcp-server-everything-wrong-native:
-  #   build:
-  #     context: ..
-  #   labels:
-  #     - type=mcp-server
-  #   environment:
-  #     - OPENAI_API_KEY=thisIsNotArealAPIkeyButstill
-  #     - MCP_TRANSPORT=streamable-http
-  #     - MCP_HOST=0.0.0.0
-  #     - MCP_PORT=8000
-  #   ports:
-  #     # Loopback-only publish. Do NOT use "8000:8000" here: that exposes
-  #     # run_command and env_var to anyone on your network. Note that MCP_HOST
-  #     # must stay 0.0.0.0 — inside a container, binding loopback would make the
-  #     # published port unreachable. Under Docker the port publish is the
-  #     # exposure control, not MCP_HOST.
-  #     - "127.0.0.1:8000:8000"
-  #   restart: always
