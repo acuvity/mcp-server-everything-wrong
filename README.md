@@ -122,6 +122,71 @@ To point a real LLM client at the compose-started server instead of the
 inspector, use the same `url`-based config shown above, unchanged:
 `http://127.0.0.1:8000/mcp`.
 
+### Or via Kubernetes (Helm)
+
+A Helm chart for deploying into an existing cluster (its own namespace, with
+an Ingress, a hardened pod spec, and an opt-in NetworkPolicy) lives in
+[`helm/mcp-server-everything-wrong`](helm/mcp-server-everything-wrong/README.md).
+
+#### Build and publish the Helm chart
+
+```console
+# 1. Build and push the Docker image
+docker build -t <your-registry>/mcp-server-everything-wrong:<tag> .
+docker push <your-registry>/mcp-server-everything-wrong:<tag>
+
+# 2. Log in to the chart registry
+helm registry login <your-chart-registry>
+
+# 3. Package the Helm chart (bump `version` in Chart.yaml first for a new release)
+helm package ./helm/mcp-server-everything-wrong
+
+# 4. Push the chart
+helm push mcp-server-everything-wrong-0.1.0.tgz oci://<your-chart-registry>/charts
+```
+
+#### Install steps
+
+```console
+# 1. Create the namespace
+kubectl create namespace mcp-everything-wrong
+
+# 2. Generate an auth token
+export MCP_TOKEN="$(openssl rand -hex 32)"
+```
+
+3. Write an overrides file (`overrides.yaml`) for the Ingress host/paths and TLS:
+
+```yaml
+ingress:
+  hosts:
+    - host: mcp.your-domain.example
+      paths:
+        - path: /mcp
+          pathType: Prefix
+  ingressClassName: <your-ingress-class>
+  # tls:
+  #   - hosts: ["mcp.your-domain.example"]
+  #     secretName: mcp-tls
+```
+
+```console
+# 4. Install from the published OCI chart
+helm install everything-wrong oci://<your-chart-registry>/charts/mcp-server-everything-wrong \
+  --version 0.1.0 \
+  -n mcp-everything-wrong \
+  -f overrides.yaml \
+  --set image.repository=<your-registry>/mcp-server-everything-wrong \
+  --set image.tag=<tag> \
+  --set auth.token="$MCP_TOKEN"
+
+# 5. Verify
+kubectl -n mcp-everything-wrong get pods,svc,ingress
+```
+
+6. Connect a client to `https://mcp.your-domain.example/mcp` with header
+   `Authorization: Bearer $MCP_TOKEN`.
+
 ---
 
 ## Available Tools
