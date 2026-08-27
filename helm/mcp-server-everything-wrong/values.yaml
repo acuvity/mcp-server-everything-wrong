@@ -1,0 +1,94 @@
+# -- Number of pod replicas. Fixed at 1 by design: the `greet` tool's rug-pull
+# demo mutates in-process state after its first call, so multiple replicas
+# behind one Service would make the demo inconsistent between calls. Do not
+# wire this into an HPA.
+replicaCount: 1
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  # -- Image repository, e.g. ghcr.io/acuvity/mcp-server-everything-wrong
+  repository: ""
+  # -- Image tag. Defaults to the chart's appVersion if left empty.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# -- Secrets for pulling from a private registry.
+imagePullSecrets: []
+
+auth:
+  # -- REQUIRED. The MCP_AUTH_TOKEN the server requires for streamable-http.
+  # Generate one yourself, e.g.: openssl rand -hex 32
+  # Passing this via --set puts it in shell history / CI logs; prefer an
+  # uncommitted values override file or --set-file for real deployments.
+  token: ""
+
+env:
+  # -- MCP_TRANSPORT. Fixed at streamable-http; this chart only makes sense
+  # for the HTTP transport (stdio has no Service/Ingress to speak of).
+  transport: streamable-http
+  # -- Optional extra environment variables, e.g. for demo parity with the
+  # compose file (OPENAI_API_KEY, GUARDRAILS). Passed through as plain
+  # string env vars — do not put secrets here, use auth.token / a Secret ref
+  # for those instead.
+  extra: {}
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: true
+  # -- e.g. "traefik", "alb" — cluster-specific, no default assumed.
+  ingressClassName: ""
+  # -- Controller-specific annotations (e.g. cert-manager, ALB target-type).
+  annotations: {}
+  hosts:
+    - host: ""
+      paths:
+        - path: /mcp
+          pathType: Prefix
+  # -- Standard Ingress.spec.tls list, e.g.:
+  # - hosts: ["mcp.example.com"]
+  #   secretName: mcp-tls
+  tls: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  # Matches the image's `app` user (Dockerfile: USER app, uid 999) — Kubernetes
+  # cannot verify runAsNonRoot against a non-numeric image user, so this must
+  # be set explicitly or the pod fails admission with CreateContainerConfigError.
+  runAsUser: 999
+  runAsGroup: 999
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+serviceAccount:
+  create: true
+  # -- If empty, defaults to the chart's fullname.
+  name: ""
+
+networkPolicy:
+  # -- Opt-in. Restricts INGRESS only (same-namespace + allowedIngressNamespaces).
+  # Egress is deliberately left unrestricted even when enabled: the `fetch`
+  # tool's whole purpose is demonstrating unrestricted outbound requests, and
+  # locking that down would silently defeat the demo.
+  enabled: false
+  # -- Namespace names allowed to reach this pod on top of same-namespace
+  # traffic, e.g. the ingress controller's namespace.
+  allowedIngressNamespaces: []

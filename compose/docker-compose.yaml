@@ -36,6 +36,11 @@ services:
       - MCP_HOST=0.0.0.0
       - MCP_PORT=8000
       - MCP_TRANSPORT=streamable-http
+      # streamable-http refuses to start without this. Fine as a fixed,
+      # committed value here since the port is loopback-only anyway (see the
+      # CAUTION below); the inspector configs below carry the same value.
+      # Override with a real secret if you ever expose this beyond loopback.
+      - MCP_AUTH_TOKEN=dev-only-insecure-token-change-me
       - OPENAI_API_KEY=thisIsNotArealAPIkeyButstill
       - GUARDRAILS=sensitive-pattern-detection secrets-redaction
     ports:

@@ -37,21 +37,42 @@ MCP over HTTP instead.
 | `--transport {stdio,streamable-http}` | `MCP_TRANSPORT` | `stdio` | The deprecated SSE transport is not supported. |
 | `--host` | `MCP_HOST` | `0.0.0.0` | HTTP only; ignored under stdio. |
 | `--port` | `MCP_PORT` | `8000` | HTTP only; ignored under stdio. |
+| *(none — env only)* | `MCP_AUTH_TOKEN` | *(none)* | HTTP only; **required** to start `streamable-http`. No CLI flag on purpose: a command-line argument would land in shell history and be readable by any local user via `ps`. |
 
 A command-line flag wins over its environment variable, which wins over the
 default.
 
+`streamable-http` refuses to start without an auth token — there is no
+unauthenticated HTTP mode. Generate one yourself (e.g. `openssl rand -hex 32`)
+and keep it secret; every request must send it back as
+`Authorization: Bearer <token>` or it gets a `401`. The server also strips
+`MCP_AUTH_TOKEN` from its own process environment at startup, so the `env_var`
+tool can't be used to read back the credential that's gating access to it.
+
 ```console
+export MCP_AUTH_TOKEN="$(openssl rand -hex 32)"
 mcp-server-everything-wrong --transport streamable-http --host 0.0.0.0 --port 8000
 ```
 
-The endpoint is then `http://<host>:<port>/mcp`. For a client that connects to a
-URL rather than spawning a process:
+> [!CAUTION]
+> The bearer token is only as safe as the transport carrying it. Plain
+> `http://` sends it in cleartext, so anyone on-path between a client and a
+> publicly reachable instance can read it off the wire and reuse it. Put a
+> TLS-terminating reverse proxy (Caddy, nginx, a cloud load balancer) in
+> front of any instance reachable beyond loopback, and connect clients to the
+> `https://` endpoint it exposes instead of talking to this server directly.
+
+The endpoint is then `http://<host>:<port>/mcp` (or `https://` behind a TLS
+proxy, per the CAUTION above). For a client that connects to a URL rather than
+spawning a process:
 
 ```jsonc
 "mcpServers": {
   "everythingWrong": {
-    "url": "http://127.0.0.1:8000/mcp"
+    "url": "http://127.0.0.1:8000/mcp",
+    "headers": {
+      "Authorization": "Bearer <your MCP_AUTH_TOKEN>"
+    }
   }
 }
 ```
@@ -100,6 +121,71 @@ ADD_MORE_MCP_SERVERS=true podman compose up -d
 To point a real LLM client at the compose-started server instead of the
 inspector, use the same `url`-based config shown above, unchanged:
 `http://127.0.0.1:8000/mcp`.
+
+### Or via Kubernetes (Helm)
+
+A Helm chart for deploying into an existing cluster (its own namespace, with
+an Ingress, a hardened pod spec, and an opt-in NetworkPolicy) lives in
+[`helm/mcp-server-everything-wrong`](helm/mcp-server-everything-wrong/README.md).
+
+#### Build and publish the Helm chart
+
+```console
+# 1. Build and push the Docker image
+docker build -t <your-registry>/mcp-server-everything-wrong:<tag> .
+docker push <your-registry>/mcp-server-everything-wrong:<tag>
+
+# 2. Log in to the chart registry
+helm registry login <your-chart-registry>
+
+# 3. Package the Helm chart (bump `version` in Chart.yaml first for a new release)
+helm package ./helm/mcp-server-everything-wrong
+
+# 4. Push the chart
+helm push mcp-server-everything-wrong-0.1.0.tgz oci://<your-chart-registry>/charts
+```
+
+#### Install steps
+
+```console
+# 1. Create the namespace
+kubectl create namespace mcp-everything-wrong
+
+# 2. Generate an auth token
+export MCP_TOKEN="$(openssl rand -hex 32)"
+```
+
+3. Write an overrides file (`overrides.yaml`) for the Ingress host/paths and TLS:
+
+```yaml
+ingress:
+  hosts:
+    - host: mcp.your-domain.example
+      paths:
+        - path: /mcp
+          pathType: Prefix
+  ingressClassName: <your-ingress-class>
+  # tls:
+  #   - hosts: ["mcp.your-domain.example"]
+  #     secretName: mcp-tls
+```
+
+```console
+# 4. Install from the published OCI chart
+helm install everything-wrong oci://<your-chart-registry>/charts/mcp-server-everything-wrong \
+  --version 0.1.0 \
+  -n mcp-everything-wrong \
+  -f overrides.yaml \
+  --set image.repository=<your-registry>/mcp-server-everything-wrong \
+  --set image.tag=<tag> \
+  --set auth.token="$MCP_TOKEN"
+
+# 5. Verify
+kubectl -n mcp-everything-wrong get pods,svc,ingress
+```
+
+6. Connect a client to `https://mcp.your-domain.example/mcp` with header
+   `Authorization: Bearer $MCP_TOKEN`.
 
 ---
 

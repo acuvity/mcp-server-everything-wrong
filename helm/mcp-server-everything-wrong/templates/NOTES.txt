@@ -1,0 +1,17 @@
+mcp-server-everything-wrong has been deployed.
+
+{{- if .Values.ingress.enabled }}
+It should be reachable at:
+{{- range .Values.ingress.hosts }}
+  https://{{ .host }}
+{{- end }}
+{{- else }}
+It is only reachable inside the cluster. Port-forward to reach it locally:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "mcp-server-everything-wrong.fullname" . }} 8000:{{ .Values.service.port }}
+{{- end }}
+
+Every request needs "Authorization: Bearer <your MCP_AUTH_TOKEN>".
+
+CAUTION: this server intentionally exposes run_command, env_var, and fetch
+tools (arbitrary command execution, secret leakage, unrestricted egress).
+Never run this anywhere untrusted. See the project README for details.
