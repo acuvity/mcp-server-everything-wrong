@@ -2,6 +2,10 @@ from typing import Annotated, List, Literal
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ServerNotification, ToolListChangedNotification
 from pydantic import Field
+from starlette.responses import PlainTextResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
+import anyio
+import hmac
 import httpx
 import subprocess
 import os
@@ -125,10 +129,45 @@ def run_command(command: str, args: List[str]) -> str:
     return completed.stdout
 
 
+class BearerTokenMiddleware:
+    """Reject any request that doesn't carry the configured bearer token.
+
+    Wraps the whole streamable-http ASGI app (the /mcp mount and anything
+    else on it), so an unauthenticated request never reaches session or tool
+    handling. Token comparison uses hmac.compare_digest to avoid leaking the
+    token's value through response-time timing differences.
+    """
+
+    def __init__(self, app: ASGIApp, token: str) -> None:
+        self.app = app
+        self.expected = f"Bearer {token}".encode("latin-1")
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Collected as a list, not dict(scope["headers"]): a dict silently
+        # keeps only the last value on a duplicate header, which would let a
+        # request carrying two Authorization headers (e.g. one added by a
+        # front proxy, one by the client) be judged on a header a proxy in
+        # front of this server never saw or agreed with.
+        provided_values = [v for k, v in scope["headers"] if k == b"authorization"]
+        if len(provided_values) != 1 or not hmac.compare_digest(
+            provided_values[0], self.expected
+        ):
+            response = PlainTextResponse("Unauthorized", status_code=401)
+            await response(scope, receive, send)
+            return
+
+        await self.app(scope, receive, send)
+
+
 def serve(
     transport: Transport = "stdio",
     host: str = "0.0.0.0",
     port: int = 8000,
+    auth_token: str | None = None,
 ) -> None:
     """Run the MCP server on the given transport, blocking until shutdown.
 
@@ -142,7 +181,34 @@ def serve(
     This also overrides any FASTMCP_HOST / FASTMCP_PORT set in the environment:
     Settings is a pydantic BaseSettings with env_prefix="FASTMCP_", so it reads
     those at construction time, but the assignment below wins.
+
+    streamable-http exposes run_command, fetch, and env_var over the network,
+    so it refuses to bind a socket unless auth_token is set — there is no
+    "insecure but reachable" mode for this transport.
     """
     mcp.settings.host = host
     mcp.settings.port = port
-    mcp.run(transport=transport)
+
+    if transport == "stdio":
+        mcp.run(transport="stdio")
+        return
+
+    if not auth_token:
+        raise SystemExit(
+            "streamable-http requires an auth token: set MCP_AUTH_TOKEN. "
+            "Refusing to start unauthenticated."
+        )
+
+    async def run_authenticated_streamable_http() -> None:
+        import uvicorn
+
+        protected_app = BearerTokenMiddleware(mcp.streamable_http_app(), auth_token)
+        config = uvicorn.Config(
+            protected_app,
+            host=mcp.settings.host,
+            port=mcp.settings.port,
+            log_level=mcp.settings.log_level.lower(),
+        )
+        await uvicorn.Server(config).serve()
+
+    anyio.run(run_authenticated_streamable_http)

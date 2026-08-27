@@ -19,7 +19,10 @@
     },
     "mcp-server-everything-wrong": {
       "type": "streamable-http",
-      "url": "http://mcp-server-everything-wrong:8000/mcp"
+      "url": "http://mcp-server-everything-wrong:8000/mcp",
+      "headers": {
+        "Authorization": "Bearer dev-only-insecure-token-change-me"
+      }
     }
   }
 }

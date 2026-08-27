@@ -65,9 +65,16 @@ def main() -> None:
             f"(choose from {', '.join(TRANSPORTS)})"
         )
 
+    # Unlike --host/--port, the auth token has no CLI flag: a command-line
+    # argument would land in shell history and be readable by any local user
+    # via `ps`/`/proc/<pid>/cmdline`. .pop(), not .get(), so it stops being
+    # visible to anything that reads this process's environment afterward —
+    # including the server's own env_var tool.
+    auth_token = os.environ.pop("MCP_AUTH_TOKEN", None)
+
     # Not asyncio.run(): serve() is synchronous and mcp.run() starts its own
     # anyio event loop internally.
-    serve(cast(Transport, args.transport), args.host, args.port)
+    serve(cast(Transport, args.transport), args.host, args.port, auth_token)
 
 
 if __name__ == "__main__":
